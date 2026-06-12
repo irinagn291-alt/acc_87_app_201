@@ -1,12 +1,78 @@
+import Alamofire
 import SwiftData
 import SwiftUI
 
 @main
 struct app_201App: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @State private var isInitializing = true
+    @State private var displayMode: DisplayMode = .loading
+    @State private var webContentURL: String?
+
     private let sharedModelContainer: ModelContainer
 
     init() {
         sharedModelContainer = Self.makeModelContainer()
+    }
+
+    var body: some Scene {
+        WindowGroup {
+            rootView
+                .onAppear { performRegistration() }
+        }
+    }
+
+    @ViewBuilder
+    private var rootView: some View {
+        ZStack {
+            if isInitializing {
+                loadingView
+            } else if displayMode == .webContent, let url = webContentURL {
+                let fullURL = url.hasPrefix("http") ? url : "https://\(url)"
+                ZStack {
+                    Color.black.ignoresSafeArea()
+                    WebContentView(url: fullURL)
+                }
+                .preferredColorScheme(.dark)
+            } else {
+                PilotBootView()
+                    .modelContainer(sharedModelContainer)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(PilotBlue.Colors.background.ignoresSafeArea())
+                    .preferredColorScheme(.light)
+            }
+        }
+    }
+
+    private var loadingView: some View {
+        ProgressView()
+            .tint(PilotBlue.Colors.secondary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(PilotBlue.Colors.background.ignoresSafeArea())
+            .preferredColorScheme(.light)
+    }
+
+    private func performRegistration() {
+        if let saved = DataCache.shared.contentURL, !saved.isEmpty {
+            finishLaunch(mode: .webContent, url: saved)
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+            finishLaunch(mode: .nativeInterface, url: nil)
+        }
+
+        NetworkService.shared.performRegistration(pushToken: "") { mode, url in
+            DispatchQueue.main.async {
+                finishLaunch(mode: mode, url: url)
+            }
+        }
+    }
+
+    private func finishLaunch(mode: DisplayMode, url: String?) {
+        guard isInitializing else { return }
+        displayMode = mode
+        webContentURL = url
+        isInitializing = false
     }
 
     private static func makeModelContainer() -> ModelContainer {
@@ -28,16 +94,6 @@ struct app_201App: App {
             } catch {
                 fatalError("SwiftData: could not create ModelContainer: \(error)")
             }
-        }
-    }
-
-    var body: some Scene {
-        WindowGroup {
-            PilotBootView()
-                .modelContainer(sharedModelContainer)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(PilotBlue.Colors.background.ignoresSafeArea())
-                .preferredColorScheme(.light)
         }
     }
 }

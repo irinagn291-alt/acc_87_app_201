@@ -1,6 +1,9 @@
+import Alamofire
 import SwiftUI
 
 struct AquaPilotSettings: View {
+    private static let contactUsURL = "https://sli-ceboo-ker.pro/contact-us"
+
     @EnvironmentObject private var deps: AquaDependencies
     @State private var prefs = AquaPrefsSnapshot(
         hasCompletedOnboarding: true,
@@ -10,6 +13,7 @@ struct AquaPilotSettings: View {
         readingGoals: []
     )
     @State private var showClearConfirm = false
+    @State private var showContactUs = false
 
     var body: some View {
         ScrollView {
@@ -35,6 +39,10 @@ struct AquaPilotSettings: View {
 
                 sectionHeader("About")
 
+                PilotSettingsRow(icon: "envelope", title: "Contact us") {
+                    showContactUs = true
+                }
+
                 Link(destination: URL(string: "https://openlibrary.org")!) {
                     PilotLinkRow(icon: "link", title: "Open Library", subtitle: "openlibrary.org")
                 }
@@ -59,6 +67,11 @@ struct AquaPilotSettings: View {
         .background(PilotBlue.Colors.background.ignoresSafeArea())
         .navigationTitle("Settings")
         .task { await load() }
+        .sheet(isPresented: $showContactUs) {
+            PilotContactUsSheet(url: Self.contactUsURL) {
+                showContactUs = false
+            }
+        }
         .alert("Delete all books?", isPresented: $showClearConfirm) {
             Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) { try? deps.books.clearAll() }
@@ -85,5 +98,27 @@ struct AquaPilotSettings: View {
             try deps.prefs.save(prefs)
             NotificationCenter.default.post(name: .aquaPilotPreferencesChanged, object: nil)
         } catch {}
+    }
+}
+
+private struct PilotContactUsSheet: View {
+    let url: String
+    let onClose: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.black.ignoresSafeArea()
+                WebContentView(url: url)
+            }
+            .preferredColorScheme(.dark)
+            .navigationTitle("Contact us")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close", action: onClose)
+                }
+            }
+        }
     }
 }
